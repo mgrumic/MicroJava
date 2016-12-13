@@ -1,0 +1,79 @@
+program ProgramC
+
+class A{
+	int x[],y[];
+}
+
+const int pi = 3, e = 2;
+
+int pii[], asd[], sss;
+
+const int a = 8;
+
+const char e = 't', asd = 's';
+
+B x, y[], z;
+
+class C extends B{
+	A theA[];
+	string a;
+
+	string getA()
+	{
+		return sss;
+	}
+}
+
+{	
+	void printaj(string x)
+	{
+		print(x);
+	}
+	
+	void printaj()
+	{
+		print('a');
+	}
+	
+	int sracunaj(int a,  xxx aa, int x)
+	int b; {
+		b = a*a;
+		return a*b;
+	}
+	void main() 
+	bool a; string b; int c; int i; int x[]; {
+		a = new A;
+		a.x = new int[5];
+		a.y = new int[5];
+		c = new C;
+		c.theA = a;
+		c.x = new int[5];
+		x = new int[3];
+		e = x;
+		sss=pi;
+		read(asd[0]);
+		sracunaj(a,b);
+		sracunaj();
+		print(sracunaj(c.i));
+		while (c.i < 2) 
+			while(c.x[6] < 2)
+			print(a);
+
+			if (c.i < 2)
+				if (a > b)
+					a = 1;
+				else
+					a = 2;
+		
+		while(c.i < 2) {
+			read(c.x[i]);
+			read(c.theA.x[i]);
+			i++;
+		}
+		
+		while(1 < 2) {
+			print(i());
+		}
+		print(c.getValue(c.theA(x[a+b])));
+	}
+}

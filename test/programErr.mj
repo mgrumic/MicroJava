@@ -1,0 +1,61 @@
+program ProgramC
+
+class A{
+	int x[],y[];
+}
+
+const pi = 3, e = 2;
+
+int niz[],;
+
+class B extends A{
+	int i; int x[];
+	
+	int getValue(int a)
+	int boola a a, a; { 
+		return this.i + this.x[0] + a; 
+	}
+}
+
+class C extends B{
+	A theA;
+	string a;
+}
+
+{	
+	int xxx(int asd) {
+		return 8;
+	}
+
+	int sracunaj(int a)
+	int b; int c; {
+		b = a*a;
+		return a*b;
+	}
+	void main() 
+	A a; C c; int i; int x[]; {
+		a = new A;
+		c = 1 class 2;
+		a.x = new int[5];
+		a.y = new int[5];
+		c = new C;
+		c.theA = a;
+		c.x = new int[5];
+		x = new int[3];
+		i=0;
+		foo(1++);
+		read(c.i);
+		print(sracunaj(c.i, 1++, 1++));
+		xxx(asd, int act);
+		while(c++) {
+			read(c.x[i]); read(c.theA.x[i]);
+			i++;
+		}
+		
+		do {
+			i++;
+		} while (class C);
+
+		print(c.getValue(c.theA.x[0]));
+	}
+}
