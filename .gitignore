@@ -1,1 +1,4 @@
 *.class
+ppdz/sym.java
+ppdz/parser.java
+ppdz/Yylex.java

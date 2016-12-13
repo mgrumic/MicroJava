@@ -21,7 +21,7 @@ Yylex: JFlex ppdz/Yylex.java
 test: JFlex sym Yylex
 	$(JAVAC) -cp $(CPATH) $(TEST_FILE)
 
-parser: ppdz/MJLexer.lex ppdz/sym.java ppdz/Yylex.java
+parser: JFlex sym Yylex
 	$(JAVA) -jar java-cup-11a.jar -destdir ppdz $(CUP_FILE)
 	$(JAVAC) -cp $(CPATH) ppdz/parser.java
 
