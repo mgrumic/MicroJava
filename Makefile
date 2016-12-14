@@ -1,5 +1,5 @@
 LEX_FILES=ppdz/MJLexer.lex
-OUT_FILES=ppdz/Yylex.java ppdz/*.class ppdz/Yylex.java~
+OUT_FILES=ppdz/Yylex.java ppdz/*.class ppdz/Yylex.java~ ppdz/sym.java ppdz/parser.java
 TEST_FILE=ppdz/MJTest.java
 CUP_FILE=ppdz/mjparser.cup
 
@@ -12,16 +12,16 @@ all: test
 JFlex: ppdz/MJLexer.lex
 	$(JAVA) -jar JFlex.jar ppdz/MJLexer.lex
 
-sym: JFlex ppdz/sym.java
+sym: JFlex parser
 	$(JAVAC) ppdz/sym.java
 
-Yylex: JFlex ppdz/Yylex.java
+Yylex: parser JFlex ppdz/Yylex.java
 	$(JAVAC) -cp $(CPATH) ppdz/Yylex.java
 
 test: JFlex sym Yylex
 	$(JAVAC) -cp $(CPATH) $(TEST_FILE)
 
-parser: JFlex sym Yylex
+parser:
 	$(JAVA) -jar java-cup-11a.jar -destdir ppdz $(CUP_FILE)
 	$(JAVAC) -cp $(CPATH) ppdz/parser.java
 

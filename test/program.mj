@@ -2,6 +2,7 @@ program ProgramC
 
 class A{
 	int x[],y[];
+	string x;
 }
 
 const int pi = 3, e = 2;
@@ -12,7 +13,7 @@ const int a = 8;
 
 const char e = 't', asd = 's';
 
-B x, y[], z;
+A x, y[], z;
 
 class C extends B{
 	A theA[];
@@ -21,6 +22,10 @@ class C extends B{
 	string getA()
 	{
 		return sss;
+	}
+
+	string getTheA() {
+		return a;
 	}
 }
 

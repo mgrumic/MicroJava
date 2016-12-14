@@ -78,6 +78,7 @@ scan with {:
 
 action code {:
 	private Obj currMethod = null;
+	private Obj currClass = null;
 	private boolean inMain = false;
 	private boolean mainDetected = false;
 	private boolean errorDetected = false;
@@ -100,6 +101,7 @@ action code {:
 			public String typeErr(String type, int line) { return semErr + line + ": Name '" + type + "' is not a valid type."; }  
 			public String alreadyDeclared(String name, int line) { return semErr + line + ": Name '" + name + "' has already been declared."; }
 			public String nameNotDeclaredErr(String name, int line) { return semErr + line + ": Name '" + name + "' has not been declared."; }
+			public String assignToConst(Obj obj, int line) { return semErr + line + ": Assigning to const variable '" + obj.getName() + "'." + objNodeToString(obj); }
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
 		
@@ -109,7 +111,9 @@ action code {:
 	        	public static String usingConstant(Obj obj, int line) { return "Using constant variable '" + obj.getName() + "' on line " + line + "." + objNodeToString(obj); }
 	        	public static String usingGlobal(Obj obj, int line) { return "Using global variable '" + obj.getName() + "' on line " + line + "." + objNodeToString(obj); }
 	        	public static String symbolFound(Obj obj, int line) { return "Found symbol '" + obj.getName() + "' on line " + line + "." + objNodeToString(obj); }
-		}
+			public static String classDecl(Obj obj, int line) { return "Class '" + obj.getName() + "' declared on line " + line + "." + objNodeToString(obj); }
+			public static String fieldDecl(Obj obj, int line) { return "Class field '" + obj.getName() + "' declared on line " + line + "." + objNodeToString(obj); }
+}
 
 		public static final _SemanticMessage SemanticMessage = new _SemanticMessage();
 		public static final _SemanticError SemanticError = new _SemanticError();
@@ -248,10 +252,31 @@ action code {:
 			}
 			if (currMethod != null) {
 				currMethod.setLevel(currMethod.getLevel() + 1);
-
-				//For class too
+				if (currClass != null) {
+					temp.setAdr(temp.getAdr() + 1);
+				}
 			}
 				
+		}
+	}
+
+	// Add class field
+	void addClassField(String name, int line, boolean isArray) {
+		if (name == null || currClass == null || currType == null) {
+			return;
+		}
+
+		if (!isDeclared(name)) {
+			Obj temp = null;
+			
+			temp = Tab.insert(Obj.Fld, name, isArray ? new Struct(Struct.Array, currType) : currType);
+
+			currClass.setAdr(currClass.getAdr() + 1);
+			temp.setAdr(currClass.getAdr());
+
+			parser.report_info(Message.SemanticMessage.fieldDecl(temp, line));
+		} else {
+			printError(Message.SemanticError.alreadyDeclared(name, line));
 		}
 	}
 
@@ -304,11 +329,11 @@ non terminal FormParam, LvalueOperator, Condition, Cond, ActPars;
 non terminal CondFact, CondTerm, Relop, Addop, AddopTermList, Mulop;
 non terminal FunctionDeclList, FunctionDecl, EndOfFunction;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
-non terminal Extends, FuncCall;
+non terminal Extends, FuncCall, ClassVarDecl, ClassVarDefList, ClassVarDef;
 non terminal String Ident;
 
 // Semantic
-non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator;
+non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
 non terminal Type, Expr, Term, Factor;
 
 Program ::= PROG ProgramName:p GlobalDeclList LBRACE FunctionDeclList RBRACE {:
@@ -405,20 +430,68 @@ VarDef ::= Ident:n {: addLocal(n, nleft, false); :}
 	| Ident:n {: addLocal(n, nleft, true); :} LBRACKET RBRACKET
 	;
 
-ClassDecl ::= CLASS Ident Extends LBRACE VarMethodDeclList RBRACE
+ClassDecl ::= CLASS ClassName:id Extends LBRACE VarMethodDeclList RBRACE {:
+		if (id != null) {
+			Tab.chainLocalSymbols(id.getType());
+			Tab.closeScope();
+		}
+
+		currClass = null;
+	:}
 	| CLASS Ident error LBRACE VarMethodDeclList RBRACE
 	| CLASS error RBRACE
 	;
+
+ClassName ::= IDENT:id {:
+		Obj temp = null;
+		
+		if (!isDeclared(id)) {
+			temp = new Obj(Obj.Type, id, new Struct(Struct.Class));
+
+			// add class to the list
+
+			Tab.currentScope.addToLocals(temp);
+			Tab.openScope();
+
+			parser.report_info(Message.SemanticMessage.classDecl(temp, idleft));
+
+			temp.getType().setElementType(null);
+			temp.setAdr(0);
+		} else {
+			printError(Message.SemanticError.alreadyDeclared(id, idleft));
+		}
+
+
+		currClass = temp;
+	        RESULT = temp;
+	:}
+	;
+
 
 Extends ::= EXTENDS Ident
 	| /* epsilon */
 	;
 
-VarMethodDeclList ::= VarDecl VarMethodDeclList
+VarMethodDeclList ::= ClassVarDecl VarMethodDeclList
 		| MethodDecl {:
 			parser.innerClassMethodCount++;
 		:} VarMethodDeclList
 		| /* epsilon */
+		;
+
+ClassVarDecl ::= Type ClassVarDefList SEMI
+		;
+
+ClassVarDefList ::= ClassVarDef
+		| ClassVarDef COMMA ClassVarDefList
+		;
+
+ClassVarDef ::= Ident:id {:
+			addClassField(id, idleft, false);
+		:}
+		| Ident:id LBRACKET RBRACKET {:
+			addClassField(id, idleft, true);
+		:}
 		;
 
 
@@ -517,7 +590,7 @@ Statement ::= matched
 
 matched ::= Designator:d LvalueOperator  {:
 		if (!parser.isLvalueVariable(d)) {
-			System.out.println("Error (" + dleft + "): Variable '" + d.getName() + "' is immutable.");
+			printError(Message.SemanticError.assignToConst(d, dleft));
 		}
 		:} SEMI
 		| Designator ASSIGN error SEMI
