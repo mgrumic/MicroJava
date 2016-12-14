@@ -79,6 +79,7 @@ scan with {:
 action code {:
 	private Obj currMethod = null;
 	private Obj currClass = null;
+	private LinkedList<Obj> currActPars = new LinkedList<Obj>();
 	private boolean inMain = false;
 	private boolean mainDetected = false;
 	private boolean errorDetected = false;
@@ -102,6 +103,9 @@ action code {:
 			public String alreadyDeclared(String name, int line) { return semErr + line + ": Name '" + name + "' has already been declared."; }
 			public String nameNotDeclaredErr(String name, int line) { return semErr + line + ": Name '" + name + "' has not been declared."; }
 			public String assignToConst(Obj obj, int line) { return semErr + line + ": Assigning to const variable '" + obj.getName() + "'." + objNodeToString(obj); }
+			public String onlyInteger(int line) { return semErr + line + ": Only integer allowed"; }
+			public String notObject(String name, int line) { return semErr + line + ": Cannot use '.' on non object type '" + name + "'."; }
+			public String memberNotFound(String name, int line) { return semErr + line + ": Class member '" + name + "' not found."; }
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
 		
@@ -329,12 +333,12 @@ non terminal FormParam, LvalueOperator, Condition, Cond, ActPars;
 non terminal CondFact, CondTerm, Relop, Addop, AddopTermList, Mulop;
 non terminal FunctionDeclList, FunctionDecl, EndOfFunction;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
-non terminal Extends, FuncCall, ClassVarDecl, ClassVarDefList, ClassVarDef;
+non terminal Extends, ClassVarDecl, ClassVarDefList, ClassVarDef;
 non terminal String Ident;
 
 // Semantic
 non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
-non terminal Type, Expr, Term, Factor;
+non terminal Obj Type, Expr, Term, Factor, FuncCall;
 
 Program ::= PROG ProgramName:p GlobalDeclList LBRACE FunctionDeclList RBRACE {:
 		Tab.chainLocalSymbols(p);
@@ -589,13 +593,20 @@ Statement ::= matched
 	;
 
 matched ::= Designator:d LvalueOperator  {:
-		if (!parser.isLvalueVariable(d)) {
-			printError(Message.SemanticError.assignToConst(d, dleft));
+		if (d != null) {
+			if (!parser.isLvalueVariable(d)) {
+				printError(Message.SemanticError.assignToConst(d, dleft));
+			}
 		}
 		:} SEMI
 		| Designator ASSIGN error SEMI
 		| FuncCall LPAREN RPAREN SEMI
-		| FuncCall LPAREN ActPars RPAREN SEMI
+		| FuncCall:f LPAREN ActPars {:
+			System.out.println("Actual parameters (" + f.getName() + ")[line " + fleft + ":");
+			for (Obj o : currActPars)
+				System.out.println(objNodeToString(o));
+			currActPars.clear();
+		:} RPAREN SEMI
 		| FuncCall LPAREN error RPAREN SEMI
 		| READ LPAREN Designator RPAREN SEMI
 		| BREAK SEMI 
@@ -626,8 +637,12 @@ LvalueOperator ::= ASSIGN Expr
 		| DECREMENT
 		;
 
-ActPars ::= Expr
-	| Expr COMMA ActPars
+ActPars ::= Expr:e {:
+		currActPars.add(e);	
+	:}
+	| Expr:e COMMA {:
+		currActPars.add(e);
+	:} ActPars
 	| Expr COMMA error COMMA
 	| Expr COMMA error RPAREN
 	;
@@ -644,9 +659,21 @@ CondFact ::= Expr
 	| Expr Relop Expr
 	;
 
-Expr ::= Expr Addop Term
-
+Expr ::= Expr:e Addop Term:t {:
+		if (e != null && t != null) {
+			if (e.getType().equals(t.getType()) && t.getType() == Tab.intType) {
+				// Code.put(addop)
+				RESULT = e;
+			} else if (t.getType().equals(e.getType()) && t.getType() == parser.stringType /*&& Addop == Code.add */) {
+				// Code.put nesto
+				RESULT = e;
+			}
+		}
+	:}
 	| MINUS Term:t {:
+		if (t.getType() != Tab.intType) {
+			printError(Message.SemanticError.onlyInteger(tleft));
+		}
 		RESULT = t;
 	:}
 	| Term:t  {:
@@ -675,8 +702,20 @@ Type ::= IDENT:t {:
 	:}
 	;
 
-Term ::= Factor
-	| Factor Mulop Term
+Term ::= Factor:f {:
+		RESULT = f;
+	:}
+	| Factor:f Mulop Term:t {:
+		if (t != null && f != null) {
+			if (t.getType().equals(f.getType()) && t.getType() == Tab.intType) {
+				// Code.put(Mulop); //Not yet
+				RESULT = t;
+			} else {
+				RESULT = null;
+				printError(Message.SemanticError.wrongType(currTypeName, tleft));
+			}
+		}
+	:}
 	;
 
 Factor ::= NUMBER:i {:
@@ -727,6 +766,12 @@ Factor ::= NUMBER:i {:
 		RESULT = f;
 	:}
 	| FuncCall:f LPAREN ActPars RPAREN {:
+		if (f != null) {
+			System.out.println("Actual parameters (" + f.getName() + ")[line " + fleft + ":");
+			for (Obj o : currActPars)
+				System.out.println(objNodeToString(o));
+			currActPars.clear();
+		}
 		RESULT = f;
 	:}
 	;
@@ -734,6 +779,7 @@ Factor ::= NUMBER:i {:
 FuncCall ::= Designator:l {:
 		if (inMain)
 			parser.fcallInMainCount++;
+		RESULT = l;
 	:}
 	;
 
@@ -743,11 +789,60 @@ Designator ::= IdentList:id {:
 	:}
 	;
 
-IdentList ::= IdentList DOT Ident:id {:
-		// Currently RESULT = Obj.noObj
-		RESULT = Tab.noObj;
+IdentList ::= IdentList:il DOT Ident:id {:
+		Obj member = null;
+
+		if (il != null) {
+			if (il.getType().getKind() != Struct.Class) {
+				printError(Message.SemanticError.notObject(il.getName(), illeft));
+			} else {
+				Struct type = il.getType();
+
+				if (currClass != null) {
+					member = Tab.currentScope.getOuter().findSymbol(id);
+				}
+
+				while(type != null && member == null) {
+					for (Obj obj : type.getMembers()) {
+						if (id.equals(obj.getName())) {
+							member = obj;
+							break;
+						}
+					}
+					type = type.getElemType();
+				}
+
+
+			}
+
+			if (member == null) {
+				printError(Message.SemanticError.memberNotFound(id, illeft));
+			} else {
+				if (member.getKind() == Obj.Meth) {
+					//set calling 
+					System.out.println("Calling class method: " + id);
+				}
+
+				if (il.getKind() != Obj.Type) {
+					// Code.load(il);
+					System.out.println("Found class field or method on line " + illeft + ": '" + id + "'.");
+				} else {
+					if (member.getKind() == Obj.Fld || member.getKind() == Obj.Meth) {
+						//
+					}
+				}
+			}
+		}
+
+		RESULT = member;
 	:}
-	| IdentList LBRACKET Expr RBRACKET
+	| IdentList:ident LBRACKET Expr:expr RBRACKET {:
+		if (ident != null) {
+			if (ident.getKind() != Struct.Array) {
+				System.out.println("Not ARRAY #@#@#@#@#@#@#@#@#@#@#@#@#@#@#@#@#@# " + ident.getName());
+			}
+		}
+	:}
 	| IdentList LBRACKET error RBRACKET
 	| Ident:id {:
 		Obj obj = null;		
