@@ -3,7 +3,7 @@ OUT_FILES=ppdz/Yylex.java ppdz/*.class ppdz/Yylex.java~ ppdz/sym.java ppdz/parse
 TEST_FILE=ppdz/MJTest.java
 CUP_FILE=ppdz/mjparser.cup
 
-CPATH=.:..:ppdz/:java-cup-11a.jar:symboltable-1.1.0.jar
+CPATH=.:..:ppdz/:java-cup-11a.jar:symboltable-1.1.0.jar:mj-runtime.jar
 JAVA=java
 JAVAC=javac
 

@@ -5,6 +5,7 @@ import java.io.*;
 import java.util.*;
 import rs.etf.pp1.symboltable.*;
 import rs.etf.pp1.symboltable.concepts.*;
+import rs.etf.pp1.mj.runtime.Code;
 
 parser code {:
 	int statementBlocksCount = 0;
@@ -17,9 +18,10 @@ parser code {:
 	int innerClassCount = 0;
 	int innerClassMethodCount = 0;
 	int instatiationStatementCount = 0;
+	int newOperatorCount = 0;
 	boolean arrayStarted = false;
 	public Struct currentVarType = null;
-
+	
 	//public static void main(String[] args) throws java.lang.Exception {
 	//	FileReader f = new FileReader(args[0]);
 	//	Yylex skener = new Yylex(f);
@@ -79,13 +81,81 @@ scan with {:
 action code {:
 	private Obj currMethod = null;
 	private Obj currClass = null;
-	private LinkedList<Obj> currActPars = new LinkedList<Obj>();
+	private LinkedList<Struct> currActPars = new LinkedList<Struct>();
 	private boolean inMain = false;
 	private boolean mainDetected = false;
 	private boolean errorDetected = false;
 	private Struct currType = null;
 	private String currTypeName = null;
 
+	public void addActualParam(Obj obj) {
+		if (obj == null) {
+			return;
+		}
+
+		if (currActPars == null) {
+			currActPars = new LinkedList<Struct>();
+		}
+
+		currActPars.add(obj.getType());
+	}
+
+	public void checkActualParams(Obj func, int line) {
+		if (func == null) {
+			return;
+		}
+		
+		int count = func.getLevel();
+
+		if (func.getName().equals("len") || func.getName().equals("ord") || func.getName().equals("chd")) {
+			currActPars = null;
+			return;
+		}
+
+		// check numbers
+		if (currActPars == null) {
+			if (count > 0) {
+				System.out.print("0 params, given more: ");
+				printError(Message.SemanticError.wrongParams(func.getName(), line));
+			}
+			return;
+		}
+		
+		if (currActPars.size() != count) {
+			System.out.print("Different number of actual and formal params: ");
+			printError(Message.SemanticError.wrongParams(func.getName(), line));
+			currActPars = null;
+			return;
+		}
+		
+		ListIterator<Struct> it = currActPars.listIterator();
+		for (Obj member : func.getLocalSymbols()) {
+			if (count-- > 0) {
+				Struct s = it.next();
+				if (!s.compatibleWith(member.getType())) {
+					System.out.print("Some argument not compatible: ");
+					printError(Message.SemanticError.wrongParams(func.getName(), line));
+				}
+			}
+		}
+
+		currActPars = null;
+
+	}
+	
+	public void generateFunctionCall(Obj func, int line) {
+		if (func == null) {
+			return;
+		}
+
+		checkActualParams(func, line);
+
+		if (func.getName().equals("len")) {
+			// Code.put(Code.arrayLength);
+			return;
+		}
+	}
+	
 	public void printError(String error) {
 		if (error == null)
 			return;
@@ -103,9 +173,13 @@ action code {:
 			public String alreadyDeclared(String name, int line) { return semErr + line + ": Name '" + name + "' has already been declared."; }
 			public String nameNotDeclaredErr(String name, int line) { return semErr + line + ": Name '" + name + "' has not been declared."; }
 			public String assignToConst(Obj obj, int line) { return semErr + line + ": Assigning to const variable '" + obj.getName() + "'." + objNodeToString(obj); }
-			public String onlyInteger(int line) { return semErr + line + ": Only integer allowed"; }
+			public String onlyInteger(int line) { return semErr + line + ": Only integer allowed."; }
 			public String notObject(String name, int line) { return semErr + line + ": Cannot use '.' on non object type '" + name + "'."; }
 			public String memberNotFound(String name, int line) { return semErr + line + ": Class member '" + name + "' not found."; }
+			public String wrongParams(String func, int line) { return semErr + line + ": Function '" + func + "' call arguments don't match declaration."; }
+			public String onlyBoolean(int line) { return semErr + line + ": Only boolean allowed."; }
+			public String cannotCompare(int line) { return semErr + line + ": Cannot compare different data types."; }
+
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
 		
@@ -330,12 +404,14 @@ non terminal VarDecl, VarDeclList, ClassDecl, ConstDefList;
 non terminal VarDefList, VarDef, VarMethodDeclList, MethodDecl;
 non terminal Statement, StatementList, matched, unmatched, FormPars;
 non terminal FormParam, LvalueOperator, Condition, Cond, ActPars;
-non terminal CondFact, CondTerm, Relop, Addop, AddopTermList, Mulop;
+non terminal CondFact, CondTerm, AddopTermList, Mulop;
 non terminal FunctionDeclList, FunctionDecl, EndOfFunction;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
 non terminal Extends, ClassVarDecl, ClassVarDefList, ClassVarDef;
 non terminal String Ident;
 
+
+non terminal Integer Relop, Addop;
 // Semantic
 non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
 non terminal Obj Type, Expr, Term, Factor, FuncCall;
@@ -601,12 +677,16 @@ matched ::= Designator:d LvalueOperator  {:
 		:} SEMI
 		| Designator ASSIGN error SEMI
 		| FuncCall LPAREN RPAREN SEMI
-		| FuncCall:f LPAREN ActPars {:
-			System.out.println("Actual parameters (" + f.getName() + ")[line " + fleft + ":");
-			for (Obj o : currActPars)
-				System.out.println(objNodeToString(o));
-			currActPars.clear();
-		:} RPAREN SEMI
+		| FuncCall:f LPAREN ActPars RPAREN SEMI {:
+			//end of function call
+			generateFunctionCall(f, fleft);
+
+			if (f != null) {
+				if (f.getType() != Tab.noType) {
+					// pop return value
+				}
+			}
+		:}
 		| FuncCall LPAREN error RPAREN SEMI
 		| READ LPAREN Designator RPAREN SEMI
 		| BREAK SEMI 
@@ -638,10 +718,10 @@ LvalueOperator ::= ASSIGN Expr
 		;
 
 ActPars ::= Expr:e {:
-		currActPars.add(e);	
+		addActualParam(e);	
 	:}
 	| Expr:e COMMA {:
-		currActPars.add(e);
+		addActualParam(e);	
 	:} ActPars
 	| Expr COMMA error COMMA
 	| Expr COMMA error RPAREN
@@ -655,24 +735,68 @@ CondTerm ::= CondFact
 	| CondFact AND CondTerm
 	;
 
-CondFact ::= Expr 
-	| Expr Relop Expr
+CondFact ::= Expr:expr {:
+		//The lonely boolean
+		Struct res = Tab.noType;
+		if (expr != null) {
+			if (!expr.getType().equals(parser.boolType)) {
+				printError(Message.SemanticError.onlyBoolean(exprleft));
+			} else {
+				res = parser.boolType;
+			}
+
+			// Code gen bool == 1
+			
+		}
+
+		RESULT = res;
+	:}
+	| Expr:expr1 Relop:op Expr:expr2 {:
+		Struct res = Tab.noType;
+		
+		if (expr1 != null && expr2 != null) {
+			if (op == Code.eq || op == Code.ne) {
+				System.out.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
+				if (!expr1.getType().equals(expr2.getType())) {
+					printError(Message.SemanticError.cannotCompare(opleft));
+				} else {
+					// fix after while or if
+				}
+			} else {
+				System.out.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
+				if (!expr1.getType().equals(expr2.getType()) || expr1.getType() != Tab.intType) {
+					printError(Message.SemanticError.cannotCompare(opleft));
+				} else {
+					// Fix after while or if
+				}
+			}
+			res = parser.boolType;
+		}
+		RESULT = res;
+		
+	:}
 	;
 
-Expr ::= Expr:e Addop Term:t {:
-		if (e != null && t != null) {
+Expr ::= Expr:e Addop:op Term:t {:
+		if (e != null && t != null && op != null) {
 			if (e.getType().equals(t.getType()) && t.getType() == Tab.intType) {
 				// Code.put(addop)
 				RESULT = e;
-			} else if (t.getType().equals(e.getType()) && t.getType() == parser.stringType /*&& Addop == Code.add */) {
+			} else if (t.getType().equals(e.getType()) && t.getType() == parser.stringType && op == Code.add) {
 				// Code.put nesto
 				RESULT = e;
+			} else {
+				printError(Message.SemanticError.wrongType(currTypeName, eleft));
+				RESULT = null;
 			}
 		}
 	:}
 	| MINUS Term:t {:
-		if (t.getType() != Tab.intType) {
-			printError(Message.SemanticError.onlyInteger(tleft));
+		if (t != null) {
+			if (t.getType() != Tab.intType) {
+				printError(Message.SemanticError.onlyInteger(tleft));
+			}
+			// Code.put(Code.neg);
 		}
 		RESULT = t;
 	:}
@@ -754,9 +878,21 @@ Factor ::= NUMBER:i {:
 		RESULT = obj;
 	:}
 	| NEW Type:t {:
+		if (t != null) {
+			if (t.getType().getKind() != Struct.Class) {
+				printError(Message.SemanticError.wrongType(t.getName(), tleft));
+			} else {		
+				parser.instatiationStatementCount++;
+			}
+		}
 		RESULT = t;
 	:}
-	| NEW Type:t LBRACKET Expr RBRACKET {:
+	| NEW Type:t LBRACKET Expr:expr {:
+		if (expr != null && expr.getType() != Tab.intType) {
+			printError(Message.SemanticError.onlyInteger(exprleft));
+		}
+	:}
+	RBRACKET {:
 		RESULT = t;
 	:}
 	| Designator:d {:
@@ -767,10 +903,7 @@ Factor ::= NUMBER:i {:
 	:}
 	| FuncCall:f LPAREN ActPars RPAREN {:
 		if (f != null) {
-			System.out.println("Actual parameters (" + f.getName() + ")[line " + fleft + ":");
-			for (Obj o : currActPars)
-				System.out.println(objNodeToString(o));
-			currActPars.clear();
+			generateFunctionCall(f, fleft);
 		}
 		RESULT = f;
 	:}
@@ -837,11 +970,24 @@ IdentList ::= IdentList:il DOT Ident:id {:
 		RESULT = member;
 	:}
 	| IdentList:ident LBRACKET Expr:expr RBRACKET {:
+		Obj obj = null;
 		if (ident != null) {
-			if (ident.getKind() != Struct.Array) {
-				System.out.println("Not ARRAY #@#@#@#@#@#@#@#@#@#@#@#@#@#@#@#@#@# " + ident.getName());
+			if (ident.getType().getKind() != Struct.Array) {
+				printError(Message.SemanticError.wrongType(ident.getName(), identleft));
+			} else {
+				// Code.load(ident);
+			}
+		
+		
+			if (expr != null && expr.getType() != Tab.intType) {
+				printError(Message.SemanticError.onlyInteger(exprleft));
+			} else if (ident.getKind() == Struct.Array) {
+				
+				obj = new Obj(Obj.Elem, ident.getName(), ident.getType().getElemType());
+				System.out.println("ObjNodeToString[x]: " + objNodeToString(obj));
 			}
 		}
+		RESULT = obj;
 	:}
 	| IdentList LBRACKET error RBRACKET
 	| Ident:id {:
@@ -879,21 +1025,21 @@ Ident ::= IDENT:i {:
 	:}
 	;
 
-Relop ::= EQUALS
-	| NEQUALS
-	| MORE
-	| MOREQUAL
-	| LESS
-	| LESSEQUAL
+Relop ::= EQUALS {: RESULT = Code.eq; :}
+	| NEQUALS {: RESULT = Code.ne; :}
+	| MORE {: RESULT = Code.gt; :}
+	| MOREQUAL {: RESULT = Code.ge; :}
+	| LESS {: RESULT = Code.lt; :}
+	| LESSEQUAL {: RESULT = Code.le; :}
 	;
 
-Addop ::= PLUS
-	| MINUS
+Addop ::= PLUS {: RESULT =  Code.add; :}
+	| MINUS {: RESULT = Code.sub; :}
 	;
 
-Mulop ::= TIMES
-	| DIV
-	| PERCENT
+Mulop ::= TIMES {: RESULT = Code.mul; :}
+	| DIV {: RESULT = Code.div; :}
+	| PERCENT {: RESULT = Code.rem; :}
 	;
 
 

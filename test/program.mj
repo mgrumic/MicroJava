@@ -16,7 +16,7 @@ const char e = 't', asd = 's';
 A x, y[], z;
 
 class C extends B{
-	A theA;
+	int theA[];
 	string a;
 
 	string getA()
@@ -46,21 +46,23 @@ class C extends B{
 		return a*b;
 	}
 	void main() 
-	A a; string b; C c; int i; int x[]; {
-		a = new A;
+	A a; string b; C c; int i; int x[]; bool bol; {
+		a = new int;
 		a.x = new int[5];
 		a.y = new int[5];
 		c = new C;
 		c.theA = a;
-		c.x = new int[5];
+		c.x = new int[c];
 		x = new int[3];
 		e = x;
 		sss=pi;
-		read(asd[0]);
-		sracunaj(a,b);
+
+		if (a > 2)
+		read(x[a]);
+		sracunaj(a,i);
 		sracunaj();
 		print(sracunaj(c));
-		while (c.i < 2) 
+		while (c.theA[sracunaj] < 2) 
 			while(c.x[6] < 2)
 			print(a);
 
@@ -75,10 +77,13 @@ class C extends B{
 			read(c.theA.x[i]);
 			i++;
 		}
-		
+		if(a) {
+			i++;
+		}
 		while(1 < 2) {
 			print(i());
 		}
+		print(c.getValue());
 		print(c.getValue(c.getValue(x[a+b])));
 	}
 }
