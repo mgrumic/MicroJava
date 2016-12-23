@@ -114,6 +114,7 @@ import java_cup.runtime.Symbol;
 <STRING> \\\"		{ string.append('\"'); }
 <STRING> \\		{ string.append('\\'); }
 <STRING> \"		{ yybegin(YYINITIAL); return new_symbol(sym.STRCONST, string.toString()); }
+<STRING> .		{ string.append(yytext().charAt(0)); }
 
 .			{ System.err.println("Leksicka greska (" + yytext() + ") u liniji " + (yyline+1)); }
 

@@ -32,12 +32,11 @@ run_parser: ppdz/MJTest.java
 	# $(JAVA) -cp $(CPATH) ppdz/MJTest test/programErr.mj
 
 
-run_test: ppdz/MJTest.java
-	@echo "******************* ISPRAVAN PROGRAM ***************************"
-	$(JAVA) -cp $(CPATH) ppdz/parser test/program.mj
-	
-	@echo "******************* NEISPRAVAN PROGRAM ***************************"
-	$(JAVA) -cp $(CPATH) ppdz/parser test/programErr.mj
+run_test: program.obj
+	$(JAVA) -cp mj-runtime.jar rs.etf.pp1.mj.runtime.Run -debug program.obj 
+
+disasm: program.obj
+	$(JAVA) -cp mj-runtime.jar rs.etf.pp1.mj.runtime.disasm program.obj
 
 
 clean:

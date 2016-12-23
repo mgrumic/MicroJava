@@ -3,11 +3,13 @@ package ppdz;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 
 import java_cup.runtime.Symbol;
 import rs.etf.pp1.symboltable.*;
+import rs.etf.pp1.mj.runtime.Code;
 
 public class MJTest {
 
@@ -33,8 +35,16 @@ public class MJTest {
 			System.out.println("Broj unutrasnjih klasa: " + p.innerClassCount);
 			System.out.println("Broj metoda unutrasnjih klasa: " + p.innerClassMethodCount);
 			System.out.println("Broj naredbi instanciranja klasa: " + p.instatiationStatementCount);
-
-
+			if (!parser.errorDetected) {
+				File file = new File("program.obj");
+				if (file.exists()) {
+					file.delete();
+				}
+				Code.write(new FileOutputStream(file));
+				System.out.println("Writing obj file: " + file.getPath());
+			} else {
+				System.out.println("ERRRRROOOOOOORRRRRRRR detected");
+			}	
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

@@ -2,60 +2,88 @@ program ProgramC
 
 class A{
 	int x[],y[];
+	string x;
 }
 
-const pi = 3, e = 2;
+const int pi = 3, e = 2;
 
-int niz[],;
+int pii[], asd[], sss;
 
-class B extends A{
-	int i; int x[];
-	
-	int getValue(int a)
-	int boola a a, a; { 
-		return this.i + this.x[0] + a; 
-	}
-}
+const int a = 8;
 
-class C extends B{
-	A theA;
+const char e = 't', asd = 's';
+
+A x, y[], z;
+
+class C extends C{
+	int theA[];
 	string a;
+
+	string getA()
+	{
+		return sss;
+	}
+
+	string getValue() {
+		return a;
+	}
 }
 
 {	
-	int xxx(int asd) {
-		return 8;
+	void printaj(string x)
+	{
+		print(x);
 	}
-
-	int sracunaj(int a)
-	int b; int c; {
+	
+	void printaj()
+	{
+		print('a');
+	}
+	
+	int sracunaj(int a,  xxx aa, int x)
+	int b; {
 		b = a*a;
 		return a*b;
 	}
 	void main() 
-	A a; C c; int i; int x[]; {
-		a = new A;
-		c = 1 class 2;
+	A a; string b; C c; int i; int x[]; bool bol; {
+		a = new int;
 		a.x = new int[5];
 		a.y = new int[5];
 		c = new C;
 		c.theA = a;
-		c.x = new int[5];
+		c.x = new int[c];
 		x = new int[3];
-		i=0;
-		foo(1++);
-		read(c.i);
-		print(sracunaj(c.i, 1++, 1++));
-		xxx(asd, int act);
-		while(c++) {
-			read(c.x[i]); read(c.theA.x[i]);
+		e = x;
+		sss=pi;
+
+		if (a > 2)
+		read(x[a]);
+		sracunaj(a,i);
+		sracunaj();
+		print(c);
+		while (c.theA[sracunaj] < 2) 
+			while(c.x[6] < 2)
+			print(a);
+
+			if (c.i < 2)
+				if (a > b)
+					a = 1;
+				else
+					a = 2;
+		
+		while(c.i < 2) {
+			read(c.x[i]);
+			read(c.theA.x[i]);
 			i++;
 		}
-		
-		do {
+		if(a) {
 			i++;
-		} while (class C);
-
-		print(c.getValue(c.theA.x[0]));
+		}
+		while(1 < 2) {
+			print(i());
+		}
+		print(c.getValue());
+		print(c.getValue(c.getValue(x[a+b])));
 	}
 }

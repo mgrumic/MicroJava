@@ -1,89 +1,39 @@
-program ProgramC
+program prog
 
-class A{
-	int x[],y[];
+const string t = "aa";
+
+class A {
 	string x;
-}
-
-const int pi = 3, e = 2;
-
-int pii[], asd[], sss;
-
-const int a = 8;
-
-const char e = 't', asd = 's';
-
-A x, y[], z;
-
-class C extends B{
-	int theA[];
-	string a;
-
-	string getA()
-	{
-		return sss;
-	}
-
-	string getValue() {
-		return a;
+	string getX() {
+		return x;
 	}
 }
 
-{	
-	void printaj(string x)
-	{
-		print(x);
-	}
-	
-	void printaj()
-	{
-		print('a');
-	}
-	
-	int sracunaj(int a,  xxx aa, int x)
-	int b; {
-		b = a*a;
-		return a*b;
-	}
-	void main() 
-	A a; string b; C c; int i; int x[]; bool bol; {
-		a = new int;
-		a.x = new int[5];
-		a.y = new int[5];
-		c = new C;
-		c.theA = a;
-		c.x = new int[c];
-		x = new int[3];
-		e = x;
-		sss=pi;
-
-		if (a > 2)
-		read(x[a]);
-		sracunaj(a,i);
-		sracunaj();
-		print(sracunaj(c));
-		while (c.theA[sracunaj] < 2) 
-			while(c.x[6] < 2)
-			print(a);
-
-			if (c.i < 2)
-				if (a > b)
-					a = 1;
-				else
-					a = 2;
-		
-		while(c.i < 2) {
-			read(c.x[i]);
-			read(c.theA.x[i]);
-			i++;
-		}
-		if(a) {
-			i++;
-		}
-		while(1 < 2) {
-			print(i());
-		}
-		print(c.getValue());
-		print(c.getValue(c.getValue(x[a+b])));
+class B extends A {
+	string y, z;
+	string getY() {
+		return y;
 	}
 }
+ 
+{
+	int saberi (int a, int b) 
+	{
+		return a+b;
+	}
+
+	void main () 
+		int r; B b[]; char d;
+	{
+		b = new B[51];
+		r = 2*3+1;
+	//	r = saberi(3, 2);
+	//	b.x = "asd";
+	//	print(r);
+		print(3);
+		print(2);
+		print(1);
+	}
+
+}
+

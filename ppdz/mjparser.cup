@@ -21,7 +21,7 @@ parser code {:
 	int newOperatorCount = 0;
 	boolean arrayStarted = false;
 	public Struct currentVarType = null;
-	
+	public static boolean errorDetected = false;
 	//public static void main(String[] args) throws java.lang.Exception {
 	//	FileReader f = new FileReader(args[0]);
 	//	Yylex skener = new Yylex(f);
@@ -79,15 +79,55 @@ scan with {:
 :}
 
 action code {:
+	public class StringCodeBuffer {
+		/**
+		 * @author Marin Markic
+		 *
+		 */
+		final int BUFFSIZE = 2048;
+		private byte[] buffer = new byte[BUFFSIZE];
+		public int pc = 0;
+		
+		public StringCodeBuffer() {}
+		
+		
+		public void put (int x)  
+		{
+			if (pc < BUFFSIZE)
+				buffer[pc++] = (byte)x;
+		}
+		
+		public void put2 (int x) { put(x>>8); put(x); }
+		 
+		public void put4 (int x) { put2(x>>16); put2(x); }
+
+		public void loadConst (int n) 
+		{
+		    if (0 <= n && n <= 5) put(Code.const_n+n);
+		    else if (n == -1) put(Code.const_m1);
+		    else  
+		    { 
+			put(Code.const_); 
+			put4(n); 
+		    }
+		}
+		
+		public int size() { return pc; }
+		
+		public byte [] getBuffer() { return buffer; }
+
+	}
+	
 	private Obj currMethod = null;
 	private Obj currClass = null;
 	private LinkedList<Struct> currActPars = new LinkedList<Struct>();
 	private boolean inMain = false;
 	private boolean mainDetected = false;
-	private boolean errorDetected = false;
 	private Struct currType = null;
 	private String currTypeName = null;
-
+	
+	private StringCodeBuffer StringCode = new StringCodeBuffer();
+	
 	public void addActualParam(Obj obj) {
 		if (obj == null) {
 			return;
@@ -161,7 +201,7 @@ action code {:
 			return;
 
 		System.err.println(error);
-		errorDetected = true;
+		parser.errorDetected = true;
 	}
 
 	public static class Message {
@@ -179,6 +219,8 @@ action code {:
 			public String wrongParams(String func, int line) { return semErr + line + ": Function '" + func + "' call arguments don't match declaration."; }
 			public String onlyBoolean(int line) { return semErr + line + ": Only boolean allowed."; }
 			public String cannotCompare(int line) { return semErr + line + ": Cannot compare different data types."; }
+			public String selfInheritance(int line) { return semErr + line + ": Self inheritance is ambiguous."; }
+			public String mainFunctionErr(int line) { return semErr + line + ": Main function declaration error."; }
 
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
@@ -266,7 +308,16 @@ action code {:
 			return;
 		}
 		//handle string type
+		if (con.getType() == parser.stringType) {
+			Obj var = parser.insert_symbol(Obj.Var, name, con.getType());
+			var.setLevel(0); // global
 
+			//StringCode.put(Code.putstatic);
+			//StringCode.put2(var.getAdr());
+
+			return;
+		}
+		
 		Obj obj = parser.insert_symbol(Obj.Con, name, con.getType());
 		obj.setAdr(con.getAdr());
 		parser.globalConstantsCount++;
@@ -404,17 +455,17 @@ non terminal VarDecl, VarDeclList, ClassDecl, ConstDefList;
 non terminal VarDefList, VarDef, VarMethodDeclList, MethodDecl;
 non terminal Statement, StatementList, matched, unmatched, FormPars;
 non terminal FormParam, LvalueOperator, Condition, Cond, ActPars;
-non terminal CondFact, CondTerm, AddopTermList, Mulop;
-non terminal FunctionDeclList, FunctionDecl, EndOfFunction;
+non terminal CondFact, CondTerm, AddopTermList;
+non terminal FunctionDeclList, FunctionDecl, EndOfFunction, Function;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
 non terminal Extends, ClassVarDecl, ClassVarDefList, ClassVarDef;
 non terminal String Ident;
 
 
-non terminal Integer Relop, Addop;
+non terminal Integer Relop, Addop, Mulop;
 // Semantic
 non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
-non terminal Obj Type, Expr, Term, Factor, FuncCall;
+non terminal Obj Type, Expr, Term, Factor, FuncCall, StrConst;
 
 Program ::= PROG ProgramName:p GlobalDeclList LBRACE FunctionDeclList RBRACE {:
 		Tab.chainLocalSymbols(p);
@@ -473,13 +524,45 @@ ConstLiteral ::= NUMBER:n {:
 			con.setAdr(b.equals("true") ? 1 : 0);
 			RESULT = con;
 		:}
-		| STRCONST {:
+		| STRCONST:i {:
 			Obj con = new Obj(Obj.Con, "", parser.stringType);
-			// Allocate on heap
+
+			// allocate on heap - len bytes
+			StringCode.loadConst(i.length());
+			StringCode.put(Code.newarray);
+			StringCode.put(0);
+
+			// address on stack
+			for (int index = 0; index < i.length(); index++)
+			{
+			    StringCode.put(Code.dup); // duplicate, bastore removes address
+			    StringCode.loadConst(index);
+			    StringCode.loadConst(i.charAt(index));
+			    StringCode.put(Code.bastore);
+			}
 
 			RESULT = con;
 		:}
 		;
+
+StrConst ::= STRCONST:i {:
+		Obj con = new Obj(Obj.Con, "", parser.stringType);
+		// Allocate on heap
+		Code.loadConst(i.length());
+		Code.put(Code.newarray);
+		Code.put(0);
+
+		for (int j = 0; j < i.length(); j++) {
+			Code.put(Code.dup);
+			Code.loadConst(j);
+			Code.loadConst(i.charAt(j));
+			Code.put(Code.bastore);
+		}
+
+		RESULT = con;
+
+	:}
+	;
 
 GlobalVarDecl ::= Type GlobalVarDefList SEMI
 		| Type error SEMI
@@ -548,7 +631,16 @@ ClassName ::= IDENT:id {:
 	;
 
 
-Extends ::= EXTENDS Ident
+Extends ::= EXTENDS Type:inherit {:
+		if (currTypeName != null && currClass != null && inherit != null) {
+			if (currTypeName.equals(currClass.getName())) {
+				printError(Message.SemanticError.selfInheritance(inheritleft));
+			} else {
+				currClass.getType().setElementType(inherit.getType());
+				currClass.setAdr(inherit.getAdr());
+			}
+		}
+	:}
 	| /* epsilon */
 	;
 
@@ -598,6 +690,51 @@ MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 	:}
 	;
 
+
+FunctionDecl ::= Type Function:fn {:
+		if (fn != null && currMethod != null) {
+			Tab.chainLocalSymbols(currMethod);
+		}
+		if (currMethod != null) {
+			Tab.closeScope();
+		}
+		parser.statementBlocksCount++;
+	:}
+	| VOID {: currType = Tab.noType; :} Function:fn {:
+		if (fn != null && currMethod != null) {
+			Tab.chainLocalSymbols(currMethod);
+		}
+
+		parser.statementBlocksCount++;
+	:}
+	;
+
+Function ::= FuncName:fn LPAREN FormPars RPAREN VarDeclList {: 
+		if (fn != null && currMethod != null) {
+			Tab.chainLocalSymbols(currMethod);
+			
+			Code.put(Code.enter);
+			Code.put(currMethod.getLevel());
+			Code.put(Tab.currentScope.getnVars());
+		}
+	:}
+	LBRACE StatementList RBRACE {:
+		if (fn != null && currMethod != null) {
+			/*if (m.getType() != Tab.noType && !returnFound) {
+
+			}*/
+			
+			parser.statementBlocksCount++;
+			
+			Tab.closeScope();
+			
+			currMethod = null;
+			Code.put(Code.exit);
+			Code.put(Code.return_);
+		}
+	:} EndOfFunction
+	;
+
 FuncName ::= IDENT:fname {:
 		
 		currMethod = null;
@@ -605,14 +742,25 @@ FuncName ::= IDENT:fname {:
 		if(!isDeclared(fname)) {
 			currMethod = Tab.insert(Obj.Meth, fname, currType);
 			currMethod.setLevel(0);
+			currMethod.setAdr(Code.pc);
 			Tab.openScope();
 		} else {
 			printError(Message.SemanticError.alreadyDeclared(fname, fnameleft));
 		}
 
 		if (currMethod != null && fname.equals("main")) {
-			inMain = true;
-			mainDetected = true;
+			if (currType != Tab.noType) {
+				printError(Message.SemanticError.mainFunctionErr(fnameleft));
+			} else {
+				inMain = true;
+				mainDetected = true;
+				Code.mainPc = currMethod.getAdr(); //set main PC
+				
+				// store global const strings
+				for (int i = 0; i < StringCode.size(); i++)
+					Code.buf[Code.pc++] = (StringCode.getBuffer())[i];
+			}
+			
 		}
 
 		RESULT = currMethod;
@@ -620,13 +768,6 @@ FuncName ::= IDENT:fname {:
 	;
 
 EndOfFunction ::= {:
-			if (inMain == true) {
-				inMain = false;
-			}
-			if (currMethod != null) {
-				Tab.closeScope();
-			}
-			currMethod = null;
 		:} 
 		/* epsilon */
 		;
@@ -635,9 +776,6 @@ FunctionDeclList ::= FunctionDecl {:
 			parser.functionDefinitionCount++;
 		:} FunctionDeclList
 		| /* epsilon */
-		;
-
-FunctionDecl ::= MethodDecl
 		;
 
 VarDeclList ::= VarDecl VarDeclList
@@ -650,8 +788,8 @@ FormPars ::= FormParam
 	| /* epsilon */
 	;
 
-FormParam ::= Type Ident:name {: addFormalParam(name, nameleft, false); :}
-		| Type Ident:name LBRACKET RBRACKET {: addFormalParam(name, nameleft, true); :}
+FormParam ::= Type Ident:name {: if(inMain) printError(Message.SemanticError.mainFunctionErr(nameleft)); addFormalParam(name, nameleft, false); :}
+		| Type Ident:name LBRACKET RBRACKET {: if(inMain) printError(Message.SemanticError.mainFunctionErr(nameleft)); addFormalParam(name, nameleft, true); :}
 		;
 
 
@@ -692,8 +830,44 @@ matched ::= Designator:d LvalueOperator  {:
 		| BREAK SEMI 
 		| RETURN SEMI
 		| RETURN Expr SEMI
-		| PRINT LPAREN Expr RPAREN SEMI
-		| PRINT LPAREN Expr COMMA NUMBER RPAREN SEMI
+		| PRINT LPAREN Expr:expr RPAREN SEMI {:
+			if (expr != null) {
+				Struct type = expr.getType();
+				if (type == Tab.intType) {
+					Code.loadConst(5);
+					Code.put(Code.print);
+				} else if (type == Tab.charType) {
+					Code.loadConst(1);
+					Code.put(Code.bprint);
+				} else if (type == parser.boolType) {
+					Code.loadConst(1);
+					Code.put(Code.bprint);
+				} else if(type == parser.stringType) {
+					// Unsuported
+				} else {
+					printError(Message.SemanticError.wrongParams("print", exprleft));
+				}
+			}
+		:}
+		| PRINT LPAREN Expr:expr COMMA NUMBER:i RPAREN SEMI {:
+			if (expr != null) {
+				Struct type = expr.getType();
+				if (type == Tab.intType) {
+					Code.loadConst(i);
+					Code.put(Code.print);
+				} else if (type == Tab.charType) {
+					Code.loadConst(i);
+					Code.put(Code.bprint);
+				} else if (type == parser.boolType) {
+					Code.loadConst(i);
+					Code.put(Code.bprint);
+				} else if(type == parser.stringType) {
+					// Unsuported
+				} else {
+					printError(Message.SemanticError.wrongParams("print", exprleft));
+				}
+			}
+		:}
 		| LBRACE StatementList RBRACE {:
 			parser.statementBlocksCount++;
 		:}
@@ -780,10 +954,10 @@ CondFact ::= Expr:expr {:
 Expr ::= Expr:e Addop:op Term:t {:
 		if (e != null && t != null && op != null) {
 			if (e.getType().equals(t.getType()) && t.getType() == Tab.intType) {
-				// Code.put(addop)
+				 Code.put(op);
 				RESULT = e;
 			} else if (t.getType().equals(e.getType()) && t.getType() == parser.stringType && op == Code.add) {
-				// Code.put nesto
+				// Call generated function for addString
 				RESULT = e;
 			} else {
 				printError(Message.SemanticError.wrongType(currTypeName, eleft));
@@ -796,7 +970,7 @@ Expr ::= Expr:e Addop:op Term:t {:
 			if (t.getType() != Tab.intType) {
 				printError(Message.SemanticError.onlyInteger(tleft));
 			}
-			// Code.put(Code.neg);
+			Code.put(Code.neg);
 		}
 		RESULT = t;
 	:}
@@ -829,10 +1003,10 @@ Type ::= IDENT:t {:
 Term ::= Factor:f {:
 		RESULT = f;
 	:}
-	| Factor:f Mulop Term:t {:
+	| Factor:f Mulop:op Term:t {:
 		if (t != null && f != null) {
 			if (t.getType().equals(f.getType()) && t.getType() == Tab.intType) {
-				// Code.put(Mulop); //Not yet
+				Code.put(op);
 				RESULT = t;
 			} else {
 				RESULT = null;
@@ -844,9 +1018,8 @@ Term ::= Factor:f {:
 
 Factor ::= NUMBER:i {:
 		Obj obj = new Obj(Obj.Con, "", Tab.intType);
-
 		obj.setAdr(i);
-		// put on expression stack
+		Code.load(obj);
 
 		RESULT = obj;
 	:}
@@ -854,7 +1027,7 @@ Factor ::= NUMBER:i {:
 		Obj obj = new Obj(Obj.Con, "", Tab.charType);
 
 		obj.setAdr(i);
-		// put on expression stack
+		Code.load(obj);
 		RESULT = obj;
 	:}
 	| LPAREN Expr:e {:
@@ -864,38 +1037,64 @@ Factor ::= NUMBER:i {:
 		Obj obj = new Obj(Obj.Con, "", parser.boolType);
 		
 		obj.setAdr(i.equals("true") ? 1 : 0);
-		// put on expression stack
-
+		Code.load(obj);
 		RESULT = obj;
 	:}
-	| STRCONST {:
-		Obj obj = new Obj(Obj.Con, "", parser.stringType);
-		
-		// allocate on heap len bytes
+	| STRCONST:i {:
+		Obj con = new Obj(Obj.Con, "", parser.stringType);
 
-		// address on stack
+                // allocate on heap - len bytes
+                Code.loadConst(i.length());
+                Code.put(Code.newarray);
+                Code.put(0);
 
-		RESULT = obj;
+                // address on stack
+                for (int index = 0; index < i.length(); index++)
+                {
+                    Code.put(Code.dup); // duplicate, bastore removes address
+                    Code.loadConst(index);
+                    Code.loadConst(i.charAt(index));
+                    Code.put(Code.bastore);
+                }
+
+		RESULT = con;
 	:}
 	| NEW Type:t {:
 		if (t != null) {
 			if (t.getType().getKind() != Struct.Class) {
 				printError(Message.SemanticError.wrongType(t.getName(), tleft));
 			} else {		
+
+				Code.put(Code.new_);
+				Code.put2(t.getType().getNumberOfFields() * 4);
+
 				parser.instatiationStatementCount++;
 			}
 		}
 		RESULT = t;
 	:}
-	| NEW Type:t LBRACKET Expr:expr {:
+	| NEW Type:t LBRACKET Expr:expr RBRACKET {:
 		if (expr != null && expr.getType() != Tab.intType) {
 			printError(Message.SemanticError.onlyInteger(exprleft));
+		} else {
+			Obj array = new Obj(Obj.Elem, t.getName(), new Struct(Struct.Array, t.getType()));
+
+			Code.put(Code.newarray);
+			if (t.getType() == Tab.charType) {
+				Code.put(0);
+			} else {
+				Code.put(1);
+			}
+
+			parser.instatiationStatementCount++;
+
+			RESULT = array;
 		}
 	:}
-	RBRACKET {:
-		RESULT = t;
-	:}
 	| Designator:d {:
+		if (d != null) {
+			Code.load(d);
+		}
 		RESULT = d;
 	:}
 	| FuncCall:f LPAREN RPAREN {:
