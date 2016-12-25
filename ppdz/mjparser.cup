@@ -80,6 +80,11 @@ scan with {:
 
 action code {:
 	Deque<Obj> callingObjAddressStack = new ArrayDeque<Obj>();
+	Deque<Integer> elseSkipAddressFixStack = new ArrayDeque<Integer>();
+	Deque<Integer> whileStartAddressFixStack = new ArrayDeque<Integer>();
+	Deque<ArrayList<Integer>> falseAddressFixStack = new ArrayDeque<ArrayList<Integer>>();
+	Deque<ArrayList<Integer>> breakAddressFixStack = new ArrayDeque<ArrayList<Integer>>();
+	List<Integer> orConditionAddressFixList = null;
 	
 	public class StringCodeBuffer {
 		/**
@@ -229,6 +234,7 @@ action code {:
 			public String mainFunctionErr(int line) { return semErr + line + ": Main function declaration error."; }
 			public String wrongRetValue(String func, int line) { return semErr + line + ": Return statement doesn't match function '" + func + "' definition."; }
 			public String notFunction(String ident, int line) { return semErr + line + ": Designator '" + ident + "' is not a function or method."; }
+			public String breakOutOfLoop(int line) { return semErr + line + ": Break out of loop."; }
 
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
@@ -323,9 +329,9 @@ action code {:
 		if (con.getType() == parser.stringType) {
 			Obj var = parser.insert_symbol(Obj.Var, name, con.getType());
 			var.setLevel(0); // global
-
-			//StringCode.put(Code.putstatic);
-			//StringCode.put2(var.getAdr());
+			
+			StringCode.put(Code.putstatic);
+			StringCode.put2(var.getAdr());
 
 			return;
 		}
@@ -471,6 +477,7 @@ non terminal CondFact, CondTerm, AddopTermList;
 non terminal FunctionDeclList, FunctionDecl, EndOfFunction, Function;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
 non terminal Extends, ClassVarDecl, ClassVarDefList, ClassVarDef;
+non terminal WhileStart, WhileEnd, IfEnd, ElseStart, ElseEnd;
 non terminal String Ident;
 
 
@@ -479,7 +486,9 @@ non terminal Integer Relop, Addop, Mulop;
 non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
 non terminal Obj Type, Expr, Term, Factor, FuncCall, StrConst;
 
-Program ::= PROG ProgramName:p GlobalDeclList LBRACE FunctionDeclList RBRACE {:
+Program ::= PROG ProgramName:p GlobalDeclList LBRACE {:
+			Code.dataSize = Tab.currentScope.getnVars();
+		:} FunctionDeclList RBRACE {:
 		Tab.chainLocalSymbols(p);
 		Tab.closeScope();
 
@@ -682,23 +691,37 @@ ClassVarDef ::= Ident:id {:
 MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 		if (m != null && currMethod != null) {
 			Tab.chainLocalSymbols(currMethod);
+			
+			Code.put(Code.enter);
+			Code.put(currMethod.getLevel() + 1); // formal
+			Code.put(Tab.currentScope.getnVars() + 1); // formal + local
 		}
 
 	:}
 		 StatementList RBRACE EndOfFunction {:
 
-			if (currMethod != null) {
+			if (m != null &&currMethod != null) {
 				Tab.closeScope();
+				Code.put(Code.exit);
+				Code.put(Code.return_);
 			}
 			parser.statementBlocksCount++;
 	:}
 	| VOID {: currType = Tab.noType; :} FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 		if (m != null && currMethod != null) {
 			Tab.chainLocalSymbols(currMethod);
+			
+			Code.put(Code.enter);
+			Code.put(currMethod.getLevel() + 1); // formal
+			Code.put(Tab.currentScope.getnVars() + 1); // formal + local
 		}
 	:}
 	StatementList RBRACE EndOfFunction {:
-		parser.statementBlocksCount++;
+		if (m != null && currMethod != null) {
+			parser.statementBlocksCount++;
+			Code.put(Code.exit);
+			Code.put(Code.return_);
+		}
 	:}
 	;
 
@@ -883,7 +906,14 @@ matched ::= Designator:d ASSIGN Expr:e  {:
 		:}
 		| FuncCall LPAREN error RPAREN SEMI
 		| READ LPAREN Designator RPAREN SEMI
-		| BREAK SEMI 
+		| BREAK:br SEMI {:
+			if (breakAddressFixStack.peek() == null) {
+				printError(Message.SemanticError.breakOutOfLoop(brleft));
+			} else {
+				Code.putJump(0);
+				breakAddressFixStack.peek().add(Code.pc - 2);
+			}
+		:}
 		| RETURN:r SEMI {:
 			if (currMethod != null) {
 				returnFound = true;
@@ -950,18 +980,81 @@ matched ::= Designator:d ASSIGN Expr:e  {:
 		| LBRACE StatementList RBRACE {:
 			parser.statementBlocksCount++;
 		:}
-		| DO matched WHILE Cond SEMI
-		| IF Cond matched ELSE matched
-		| WHILE Cond matched
+		| DO WhileStart matched WHILE Cond WhileEnd SEMI
+		| IF Cond matched ElseStart ELSE IfEnd matched ElseEnd
+		| WHILE WhileStart Cond matched WhileEnd
 		;
 
 
-unmatched ::= IF Cond Statement
-	| IF Cond matched  ELSE unmatched
-	| WHILE Cond unmatched
+unmatched ::= IF Cond Statement IfEnd
+	| IF Cond matched ElseStart ELSE IfEnd unmatched ElseEnd
+	| WHILE WhileStart Cond unmatched WhileEnd
 	;
 
-Cond ::= LPAREN Condition RPAREN
+WhileStart ::= {:
+		breakAddressFixStack.push(new ArrayList<Integer>());
+
+		whileStartAddressFixStack.push(Code.pc);
+	:}
+	;
+
+IfEnd ::= {:
+		ArrayList<Integer> al = falseAddressFixStack.peek();
+		System.err.println("IfEnd");
+		if (al != null) {
+			System.err.println("al != null && al.size = " + al.size());
+			
+			for (Integer i : al) {
+				Code.fixup(i);
+				System.err.println("IfEnd->FIXUP: " + i.toString());
+			}
+			falseAddressFixStack.pop();
+		}
+	:}
+	;
+
+WhileEnd ::= {:
+		Code.putJump(whileStartAddressFixStack.pop());
+
+		ArrayList<Integer> al = falseAddressFixStack.pop();
+
+		for (Integer i : al) {
+			Code.fixup(i);
+				System.err.println("WHileEnd->FIXUP: " + i.toString());
+		}
+
+		al = breakAddressFixStack.pop();
+		for (Integer i : al) {
+			
+				System.err.println("WhileEnd->FIXUP: " + i.toString());
+			Code.fixup(i);
+		}
+	:}
+	;
+
+ElseStart ::= {:
+		Code.putJump(0);
+		elseSkipAddressFixStack.push(Code.pc - 2);
+	:}
+	;
+
+ElseEnd ::= {:
+		Integer xxx = elseSkipAddressFixStack.pop();
+		System.err.println("ElseEnd->FIXUP: " + xxx.toString());
+		Code.fixup(xxx);
+	:}
+	;
+
+Cond ::= LPAREN {:
+		falseAddressFixStack.push(new ArrayList<Integer>());
+		orConditionAddressFixList = new ArrayList<Integer>();
+	:} Condition RPAREN {:
+		for (Integer i : orConditionAddressFixList) {
+			
+				System.err.println("Cond->FIXUP: " + i.toString());
+			Code.fixup(i);
+		}
+	:}
 	| LPAREN error RPAREN
 	;
 
@@ -969,14 +1062,25 @@ ActPars ::= Expr:e {:
 		addActualParam(e);	
 	:}
 	| Expr:e COMMA {:
-		addActualParam(e);	
+		addActualParam(e);
 	:} ActPars
 	| Expr COMMA error COMMA
 	| Expr COMMA error RPAREN
 	;
 
 Condition ::= CondTerm
-	| CondTerm OR Condition
+	| Condition {:
+		Code.putJump(0);
+		orConditionAddressFixList.add(Code.pc - 2);
+
+		ArrayList<Integer> al = falseAddressFixStack.pop();
+		for (Integer i : al) {
+			
+				System.err.println("Condition->FIXUP: " + i.toString());
+			Code.fixup(i);
+		}
+		falseAddressFixStack.push(new ArrayList<Integer>());
+	:} OR CondTerm
 	;
 
 CondTerm ::= CondFact
@@ -992,9 +1096,12 @@ CondFact ::= Expr:expr {:
 			} else {
 				res = parser.boolType;
 			}
-
+			System.err.println("AAAAAAAAAAAAAAAAAAAAAAAAAAA");
 			// Code gen bool == 1
-			
+			Code.loadConst(1);
+
+			Code.putFalseJump(Code.eq, 0);
+			falseAddressFixStack.peek().add(Code.pc - 2);
 		}
 
 		RESULT = res;
@@ -1004,18 +1111,23 @@ CondFact ::= Expr:expr {:
 		
 		if (expr1 != null && expr2 != null) {
 			if (op == Code.eq || op == Code.ne) {
-				System.out.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
+				System.err.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
 				if (!expr1.getType().equals(expr2.getType())) {
 					printError(Message.SemanticError.cannotCompare(opleft));
 				} else {
 					// fix after while or if
+					Code.putFalseJump(op, 0);
+					falseAddressFixStack.peek().add(Code.pc - 2);
 				}
 			} else {
-				System.out.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
+				System.err.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
 				if (!expr1.getType().equals(expr2.getType()) || expr1.getType() != Tab.intType) {
 					printError(Message.SemanticError.cannotCompare(opleft));
 				} else {
 					// Fix after while or if
+					Code.putFalseJump(op, 0);
+					System.err.println("JKAWHDIUQWHIUODHQWOIDHOIQWDJ");
+					falseAddressFixStack.peek().add(Code.pc - 2);
 				}
 			}
 			res = parser.boolType;
@@ -1172,6 +1284,9 @@ Factor ::= NUMBER:i {:
 		RESULT = d;
 	:}
 	| FuncCall:f LPAREN RPAREN {:
+		if (f != null) {
+			generateFunctionCall(f, fleft);
+		}
 		RESULT = f;
 	:}
 	| FuncCall:f LPAREN ActPars RPAREN {:

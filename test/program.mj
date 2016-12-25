@@ -1,6 +1,9 @@
 program prog
 
-const string t = "aa";
+const string t = "aa1234567";
+const string ccc = "aa";
+const string qwe = "rty";
+
 
 class A {
 	string x;
@@ -15,8 +18,8 @@ class B extends A {
 	string y, z;
 
 
-	string getY() {
-		return y;
+	int getY() {
+		return int1;
 	}
 
 }
@@ -28,15 +31,35 @@ class B extends A {
 	}
 
 	void main () 
-		B ba; int r; B b[]; char d; int niz[];
+		B ba; string x; bool bl; int r; B b[]; char d; int niz[];
 	{
+		bl = false;
 		ba = new B;
-		ba.y = "a";
+		ba.y = new char[16];
+		ba.y = "asdasdasdasds";
 		ba.int1 = 1;
 		ba.int2 = 2;
 		ba.int1 = 3;
-		ba.int1 = len(ba.y);
+		print(ba.int2);
+		if(bl) {
+			print(666);
+		} else {
+			print(777);
+		}
+
+		r = 7;
+
+			do{print(r);
+			r--;}
+		while (r > 0);
+		
+		if (bl || r == 0) {
+			print(123);
+		}
+
+
 		niz = new int[50];
+		print(ba.getY());
 		b = new B[51];
 		r = 2*(3+1);
 		r = saberi(3, 2);
