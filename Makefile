@@ -33,7 +33,7 @@ run_parser: ppdz/MJTest.java
 
 
 run_test: program.obj
-	$(JAVA) -cp mj-runtime.jar rs.etf.pp1.mj.runtime.Run -debug program.obj 
+	$(JAVA) -cp mj-runtime.jar rs.etf.pp1.mj.runtime.Run program.obj ${ARGS}
 
 disasm: program.obj
 	$(JAVA) -cp mj-runtime.jar rs.etf.pp1.mj.runtime.disasm program.obj

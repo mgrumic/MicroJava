@@ -4,16 +4,21 @@ const string t = "aa";
 
 class A {
 	string x;
+	int int2;
 	string getX() {
 		return x;
 	}
 }
 
 class B extends A {
+	int int1;
 	string y, z;
+
+
 	string getY() {
 		return y;
 	}
+
 }
  
 {
@@ -23,13 +28,25 @@ class B extends A {
 	}
 
 	void main () 
-		int r; B b[]; char d;
+		B ba; int r; B b[]; char d; int niz[];
 	{
+		ba = new B;
+		ba.y = "a";
+		ba.int1 = 1;
+		ba.int2 = 2;
+		ba.int1 = 3;
+		ba.int1 = len(ba.y);
+		niz = new int[50];
 		b = new B[51];
-		r = 2*3+1;
-	//	r = saberi(3, 2);
+		r = 2*(3+1);
+		r = saberi(3, 2);
+		niz[5] = 67;
+		print(niz[5]);
 	//	b.x = "asd";
-	//	print(r);
+		r++;
+		print(r);
+		r--;
+		print(r);
 		print(3);
 		print(2);
 		print(1);

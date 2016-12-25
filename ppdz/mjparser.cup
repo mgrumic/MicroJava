@@ -61,7 +61,7 @@ parser code {:
 	}
 
 	public static boolean isLvalueVariable(Obj obj) {
-		return obj.getKind() == Obj.Var || obj.getKind() == Obj.Fld;
+		return obj.getKind() == Obj.Var || obj.getKind() == Obj.Fld || obj.getKind() == Obj.Elem;
 	}
 
 
@@ -79,6 +79,8 @@ scan with {:
 :}
 
 action code {:
+	Deque<Obj> callingObjAddressStack = new ArrayDeque<Obj>();
+	
 	public class StringCodeBuffer {
 		/**
 		 * @author Marin Markic
@@ -125,9 +127,9 @@ action code {:
 	private boolean mainDetected = false;
 	private Struct currType = null;
 	private String currTypeName = null;
-	
+	private boolean returnFound = false;
 	private StringCodeBuffer StringCode = new StringCodeBuffer();
-	
+	private boolean isFunctionCall = false;
 	public void addActualParam(Obj obj) {
 		if (obj == null) {
 			return;
@@ -191,9 +193,13 @@ action code {:
 		checkActualParams(func, line);
 
 		if (func.getName().equals("len")) {
-			// Code.put(Code.arrayLength);
+			Code.put(Code.arraylength);
 			return;
 		}
+
+		int destAdr = func.getAdr() - Code.pc;
+		Code.put(Code.call);
+		Code.put2(destAdr);
 	}
 	
 	public void printError(String error) {
@@ -221,6 +227,8 @@ action code {:
 			public String cannotCompare(int line) { return semErr + line + ": Cannot compare different data types."; }
 			public String selfInheritance(int line) { return semErr + line + ": Self inheritance is ambiguous."; }
 			public String mainFunctionErr(int line) { return semErr + line + ": Main function declaration error."; }
+			public String wrongRetValue(String func, int line) { return semErr + line + ": Return statement doesn't match function '" + func + "' definition."; }
+			public String notFunction(String ident, int line) { return semErr + line + ": Designator '" + ident + "' is not a function or method."; }
 
 			public final String noMainDetected = "Semantic error: void main() not found.";
 		}
@@ -233,6 +241,10 @@ action code {:
 	        	public static String symbolFound(Obj obj, int line) { return "Found symbol '" + obj.getName() + "' on line " + line + "." + objNodeToString(obj); }
 			public static String classDecl(Obj obj, int line) { return "Class '" + obj.getName() + "' declared on line " + line + "." + objNodeToString(obj); }
 			public static String fieldDecl(Obj obj, int line) { return "Class field '" + obj.getName() + "' declared on line " + line + "." + objNodeToString(obj); }
+			public static String functionCalled(String func, int line) { return "Calling '" + func + "' function on line " + line + "."; }
+			public static String methodCalled(String meth, int line) { return "Calling '" + meth + "' method on line " + line + "."; }
+
+
 }
 
 		public static final _SemanticMessage SemanticMessage = new _SemanticMessage();
@@ -712,7 +724,7 @@ FunctionDecl ::= Type Function:fn {:
 Function ::= FuncName:fn LPAREN FormPars RPAREN VarDeclList {: 
 		if (fn != null && currMethod != null) {
 			Tab.chainLocalSymbols(currMethod);
-			
+			returnFound = false;		
 			Code.put(Code.enter);
 			Code.put(currMethod.getLevel());
 			Code.put(Tab.currentScope.getnVars());
@@ -728,9 +740,11 @@ Function ::= FuncName:fn LPAREN FormPars RPAREN VarDeclList {:
 			
 			Tab.closeScope();
 			
+			if (currMethod.getType() == Tab.noType && returnFound == false) {
+				Code.put(Code.exit);
+				Code.put(Code.return_);
+			}
 			currMethod = null;
-			Code.put(Code.exit);
-			Code.put(Code.return_);
 		}
 	:} EndOfFunction
 	;
@@ -806,13 +820,55 @@ Statement ::= matched
 	| unmatched
 	;
 
-matched ::= Designator:d LvalueOperator  {:
-		if (d != null) {
+matched ::= Designator:d ASSIGN Expr:e  {:
+		if (d != null && e != null) {
 			if (!parser.isLvalueVariable(d)) {
 				printError(Message.SemanticError.assignToConst(d, dleft));
 			}
+			
+			Struct t1 = d.getType();
+			Struct t2 = e.getType();
+
+			if (!t2.assignableTo(t1)) {
+				printError(Message.SemanticError.wrongType(d.getName(), dleft));
+			}
+
+			Code.store(d);
+
 		}
 		:} SEMI
+		| Designator:d INCREMENT SEMI {:
+			if (d != null) {
+				if (d.getKind() == Obj.Con) {
+					printError(Message.SemanticError.assignToConst(d, dleft));
+				}
+
+				if (d.getType() != Tab.intType) {
+					printError(Message.SemanticError.onlyInteger(dleft));
+				} else {
+					Code.load(d);
+					Code.loadConst(1);
+					Code.put(Code.add);
+					Code.store(d);
+				}
+			}
+		:}
+		| Designator:d DECREMENT SEMI {:
+			if (d != null) {
+				if (d.getKind() == Obj.Con) {
+					printError(Message.SemanticError.assignToConst(d, dleft));
+				}
+
+				if (d.getType() != Tab.intType) {
+					printError(Message.SemanticError.onlyInteger(dleft));
+				} else {
+					Code.load(d);
+					Code.loadConst(1);
+					Code.put(Code.sub);
+					Code.store(d);
+				}
+			}
+		:}
 		| Designator ASSIGN error SEMI
 		| FuncCall LPAREN RPAREN SEMI
 		| FuncCall:f LPAREN ActPars RPAREN SEMI {:
@@ -828,8 +884,31 @@ matched ::= Designator:d LvalueOperator  {:
 		| FuncCall LPAREN error RPAREN SEMI
 		| READ LPAREN Designator RPAREN SEMI
 		| BREAK SEMI 
-		| RETURN SEMI
-		| RETURN Expr SEMI
+		| RETURN:r SEMI {:
+			if (currMethod != null) {
+				returnFound = true;
+
+				if (currMethod.getType() != Tab.noType) {
+					printError(Message.SemanticError.wrongRetValue(currMethod.getName(), rleft));
+				} else {
+					Code.put(Code.exit);
+					Code.put(Code.return_);
+				}
+			}
+		:}
+		| RETURN Expr:e SEMI {:
+			if (currMethod != null && e != null) {
+				Struct t = e.getType();
+				returnFound = true;
+
+				if (!t.compatibleWith(currMethod.getType())) {
+					printError(Message.SemanticError.wrongRetValue(currMethod.getName(), eleft));
+				} else {
+					Code.put(Code.exit);
+					Code.put(Code.return_);
+				}
+			}
+		:}
 		| PRINT LPAREN Expr:expr RPAREN SEMI {:
 			if (expr != null) {
 				Struct type = expr.getType();
@@ -885,11 +964,6 @@ unmatched ::= IF Cond Statement
 Cond ::= LPAREN Condition RPAREN
 	| LPAREN error RPAREN
 	;
-
-LvalueOperator ::= ASSIGN Expr
-		| INCREMENT
-		| DECREMENT
-		;
 
 ActPars ::= Expr:e {:
 		addActualParam(e);	
@@ -1109,8 +1183,21 @@ Factor ::= NUMBER:i {:
 	;
 
 FuncCall ::= Designator:l {:
-		if (inMain)
+		if (inMain) {
 			parser.fcallInMainCount++;
+		}
+
+		if (l != null) {
+			if (Obj.Meth == l.getKind()) {
+				if (currClass != null && isFunctionCall) { //not in class and its not IDENT.IDENT
+					parser.report_info(Message.SemanticMessage.functionCalled(l.getName(), lleft));
+				} else {
+					parser.report_info(Message.SemanticMessage.methodCalled(l.getName(), lleft));
+				}
+			} else {
+				printError(Message.SemanticError.notFunction(l.getName(), lleft));
+			}
+		}
 		RESULT = l;
 	:}
 	;
@@ -1152,15 +1239,15 @@ IdentList ::= IdentList:il DOT Ident:id {:
 			} else {
 				if (member.getKind() == Obj.Meth) {
 					//set calling 
-					System.out.println("Calling class method: " + id);
+					callingObjAddressStack.push(il);
+					isFunctionCall = false;
 				}
 
 				if (il.getKind() != Obj.Type) {
-					// Code.load(il);
-					System.out.println("Found class field or method on line " + illeft + ": '" + id + "'.");
+					Code.load(il);
 				} else {
 					if (member.getKind() == Obj.Fld || member.getKind() == Obj.Meth) {
-						//
+						Code.put(Code.load_n + 0);
 					}
 				}
 			}
@@ -1168,25 +1255,22 @@ IdentList ::= IdentList:il DOT Ident:id {:
 
 		RESULT = member;
 	:}
-	| IdentList:ident LBRACKET Expr:expr RBRACKET {:
-		Obj obj = null;
+	| IdentList:ident LBRACKET {:
 		if (ident != null) {
 			if (ident.getType().getKind() != Struct.Array) {
 				printError(Message.SemanticError.wrongType(ident.getName(), identleft));
 			} else {
-				// Code.load(ident);
+				Code.load(ident);
 			}
-		
-		
-			if (expr != null && expr.getType() != Tab.intType) {
+			
+			RESULT = new Obj(Obj.Elem, ident.getName(), ident.getType().getElemType());
+		}
+	:} Expr:expr RBRACKET {:
+		if (expr != null) {
+			if (expr.getType() != Tab.intType) {
 				printError(Message.SemanticError.onlyInteger(exprleft));
-			} else if (ident.getKind() == Struct.Array) {
-				
-				obj = new Obj(Obj.Elem, ident.getName(), ident.getType().getElemType());
-				System.out.println("ObjNodeToString[x]: " + objNodeToString(obj));
 			}
 		}
-		RESULT = obj;
 	:}
 	| IdentList LBRACKET error RBRACKET
 	| Ident:id {:
@@ -1196,8 +1280,23 @@ IdentList ::= IdentList:il DOT Ident:id {:
 		obj = Tab.currentScope.findSymbol(id);
 
 		// find in class
-		if (obj == null && false /* currentClass != null */) {
+		if (obj == null && currClass != null) {
+			Struct type = currClass.getType();
 
+			obj = Tab.currentScope.getOuter().findSymbol(id);
+
+			while (type != null && obj == null) {
+				for (Obj field : type.getMembers()) {
+					if (id.equals(field.getName())) {
+						obj = field;
+						break;
+					}
+				}
+			}
+
+			if (id.equals("this")) {
+				obj = currClass;
+			}
 		}
 
 		// global
@@ -1210,10 +1309,21 @@ IdentList ::= IdentList:il DOT Ident:id {:
 			obj = null;
 			printError(Message.SemanticError.nameNotDeclaredErr(id, idleft));
 		} else if (obj.getKind() != Obj.Meth) {
+			isFunctionCall = true;
 			parser.report_info(Message.SemanticMessage.symbolFound(obj, idleft));
 		}
 
-		//Generate some code
+		// load this
+		if (obj != null && currClass != null) {
+			if (obj.getKind() == Obj.Fld) {
+				Code.put(Code.load_n + 0);
+			} else if (obj.getKind() == Obj.Meth) {
+				Code.put(Code.load_n + 0);
+				callingObjAddressStack.push(currClass);
+
+				isFunctionCall = true;
+			}
+		}
 
 		RESULT = obj;
 	:}
