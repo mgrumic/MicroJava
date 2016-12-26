@@ -13,23 +13,20 @@ JFlex: ppdz/MJLexer.lex
 	$(JAVA) -jar JFlex.jar ppdz/MJLexer.lex
 
 sym: JFlex parser
-	$(JAVAC) ppdz/sym.java
+	$(JAVAC) -g ppdz/sym.java
 
 Yylex: parser JFlex ppdz/Yylex.java
-	$(JAVAC) -cp $(CPATH) ppdz/Yylex.java
+	$(JAVAC) -cp $(CPATH) -g ppdz/Yylex.java
 
 test: JFlex sym Yylex
-	$(JAVAC) -cp $(CPATH) $(TEST_FILE)
+	$(JAVAC) -cp $(CPATH) -g $(TEST_FILE)
 
 parser:
 	$(JAVA) -jar java-cup-11a.jar -destdir ppdz $(CUP_FILE)
-	$(JAVAC) -cp $(CPATH) ppdz/parser.java
+	$(JAVAC) -cp $(CPATH) -g ppdz/parser.java
 
 run_parser: ppdz/MJTest.java
-	@echo "******************* ISPRAVAN PROGRAM ***************************"
 	@$(JAVA) -cp $(CPATH) ppdz/MJTest test/program.mj
-	@echo "******************* NEISPRAVAN PROGRAM ***************************"
-	# $(JAVA) -cp $(CPATH) ppdz/MJTest test/programErr.mj
 
 
 run_test: program.obj

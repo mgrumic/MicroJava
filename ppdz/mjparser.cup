@@ -86,9 +86,199 @@ action code {:
 	Deque<ArrayList<Integer>> breakAddressFixStack = new ArrayDeque<ArrayList<Integer>>();
 	List<Integer> orConditionAddressFixList = null;
 	
+	// predefined functions address
+	int printStringAddr = 0;
+	int readStringAddr = 0;
+	int addStringAddr = 0;	
+
+	// generate predefined functions that prints string -------------------------------------------------------------------------
+    	void generatePrintString()
+    	{
+            printStringAddr = Code.pc;
+
+            // (string), len, i
+            Code.put(Code.enter);
+            Code.put(1); 
+            Code.put(3);
+            
+            // i = 0
+            Code.put(Code.const_n);
+            Code.put(Code.store_2);
+            
+            // len = len(str);
+            Code.put(Code.load_n);
+            Code.put(Code.arraylength);
+            Code.put(Code.store_1);
+            
+            // while (i < len)
+            Code.put(Code.load_2);
+            Code.put(Code.load_1);
+            Code.put(Code.jcc + Code.ge);
+            Code.put2(15);
+
+            // print s[i];
+            Code.put(Code.load_n);
+            Code.put(Code.load_2);
+            Code.put(Code.baload);
+            Code.put(Code.const_1);
+            Code.put(Code.bprint);
+            // i++
+            Code.put(Code.load_2);
+            Code.put(Code.const_1);
+            Code.put(Code.add);
+            Code.put(Code.store_2);
+            
+            Code.put(Code.jmp);
+            Code.put2(-14);
+            
+            Code.put(Code.exit);
+            Code.put(Code.return_);
+    	}
+
+    	// generate predefined functions that reads string -------------------------------------------------------------------------
+    	void generateReadString()
+    	{
+            readStringAddr = Code.pc;
+            
+            // (string), len, i
+            Code.put(Code.enter);
+            Code.put(1); 
+            Code.put(3);
+
+            // i = 0
+            Code.put(Code.const_n);
+            Code.put(Code.store_2);
+            
+            // len = len(str);
+            Code.put(Code.load_n);
+            Code.put(Code.arraylength);
+            Code.put(Code.store_1);
+
+            // while (i < len)
+            Code.put(Code.load_2);
+            Code.put(Code.load_1);
+            Code.put(Code.jcc + Code.ge);
+            Code.put2(14);
+
+            // read s[i];
+            Code.put(Code.load_n);
+            Code.put(Code.load_2);
+            Code.put(Code.bread);
+            Code.put(Code.bastore);
+
+            // i++
+            Code.put(Code.load_2);
+            Code.put(Code.const_1);
+            Code.put(Code.add);
+            Code.put(Code.store_2);
+
+            Code.put(Code.jmp);
+            Code.put2(-13);
+            
+            Code.put(Code.exit);
+            Code.put(Code.return_);
+    	}
+
+    	// generate predefined functions that concatenate strings -------------------------------------------------------------------------
+    	void generateAddString()
+    	{
+           addStringAddr = Code.pc;
+
+            // (string s1, string s2); int i, j, m, n; string res;
+            Code.put(Code.enter);
+            Code.put(2); 
+            Code.put(7);
+
+            // m = len(s1);
+            Code.put(Code.load_n);
+            Code.put(Code.arraylength);
+            Code.put(Code.store);
+            Code.put(4);
+            
+            // n = len(s2);
+            Code.put(Code.load_1);
+            Code.put(Code.arraylength);
+            Code.put(Code.store);
+            Code.put(5);
+            
+            // res = new char[m+n]
+            Code.put(Code.load);
+            Code.put(4);
+            Code.put(Code.load);
+            Code.put(5);
+            Code.put(Code.add);
+            Code.put(Code.newarray);
+            Code.put(0);
+            Code.put(Code.store);
+            Code.put(6);
+
+            // while (i < m)
+            Code.put(Code.load_2);
+            Code.put(Code.load);
+            Code.put(4);
+            Code.put(Code.jcc + Code.ge);
+            Code.put2(17);
+
+            // s[i] = s1[i];
+            Code.put(Code.load);
+            Code.put(6);
+            Code.put(Code.load_2);
+            Code.put(Code.load_n);
+            Code.put(Code.load_2);
+            Code.put(Code.baload);
+            Code.put(Code.bastore);
+
+            // i++;
+            Code.put(Code.load_2);
+            Code.put(Code.const_1);
+            Code.put(Code.add);
+            Code.put(Code.store_2);
+
+            Code.put(Code.jmp);
+            Code.put2(-17);
+            
+            // while (j < n)
+            Code.put(Code.load_3);
+            Code.put(Code.load);
+            Code.put(5);
+            Code.put(Code.jcc + Code.ge);
+            Code.put2(21);
+
+            // s[i] = s2[j];
+            Code.put(Code.load);
+            Code.put(6);
+            Code.put(Code.load_2);
+            Code.put(Code.load_1);
+            Code.put(Code.load_3);
+            Code.put(Code.baload);
+            Code.put(Code.bastore);
+            
+            // i++;
+            Code.put(Code.load_2);
+            Code.put(Code.const_1);
+            Code.put(Code.add);
+            Code.put(Code.store_2);
+
+            // j++;
+            Code.put(Code.load_3);
+            Code.put(Code.const_1);
+            Code.put(Code.add);
+            Code.put(Code.store_3);
+
+            Code.put(Code.jmp);
+            Code.put2(-21);
+
+            // res left on stack
+            Code.put(Code.load);
+            Code.put(6);
+            
+            Code.put(Code.exit);
+            Code.put(Code.return_);
+    	}
+
 	public class StringCodeBuffer {
 		/**
-		 * @author Marin Markic
+		 * @author Marko Grumic
 		 *
 		 */
 		final int BUFFSIZE = 2048;
@@ -332,7 +522,7 @@ action code {:
 			
 			StringCode.put(Code.putstatic);
 			StringCode.put2(var.getAdr());
-
+			parser.globalConstantsCount++;
 			return;
 		}
 		
@@ -472,9 +662,9 @@ non terminal Program, ConstDecl;
 non terminal VarDecl, VarDeclList, ClassDecl, ConstDefList;
 non terminal VarDefList, VarDef, VarMethodDeclList, MethodDecl;
 non terminal Statement, StatementList, matched, unmatched, FormPars;
-non terminal FormParam, LvalueOperator, Condition, Cond, ActPars;
-non terminal CondFact, CondTerm, AddopTermList;
-non terminal FunctionDeclList, FunctionDecl, EndOfFunction, Function;
+non terminal FormParam, Condition, Cond, ActPars;
+non terminal CondFact, CondTerm;
+non terminal FunctionDeclList, FunctionDecl, Function;
 non terminal GlobalDeclList, GlobalDecl, GlobalConstDecl, GlobalVarDecl, GlobalVarDefList, GlobalVarDef;
 non terminal Extends, ClassVarDecl, ClassVarDefList, ClassVarDef;
 non terminal WhileStart, WhileEnd, IfEnd, ElseStart, ElseEnd;
@@ -483,10 +673,14 @@ non terminal String Ident;
 
 non terminal Integer Relop, Addop, Mulop;
 // Semantic
-non terminal Obj ProgramName, ConstLiteral, FuncName, IdentList, Designator, ClassName;
-non terminal Obj Type, Expr, Term, Factor, FuncCall, StrConst;
+non terminal Obj ProgramName, ConstLiteral, FuncName, MethodName, IdentList, Designator, ClassName;
+non terminal Obj Type, Expr, Term, Factor, FuncCall;
 
-Program ::= PROG ProgramName:p GlobalDeclList LBRACE {:
+Program ::= PROG ProgramName:p {:
+		generatePrintString();
+		generateReadString();
+		generateAddString();
+	:} GlobalDeclList LBRACE {:
 			Code.dataSize = Tab.currentScope.getnVars();
 		:} FunctionDeclList RBRACE {:
 		Tab.chainLocalSymbols(p);
@@ -565,25 +759,6 @@ ConstLiteral ::= NUMBER:n {:
 			RESULT = con;
 		:}
 		;
-
-StrConst ::= STRCONST:i {:
-		Obj con = new Obj(Obj.Con, "", parser.stringType);
-		// Allocate on heap
-		Code.loadConst(i.length());
-		Code.put(Code.newarray);
-		Code.put(0);
-
-		for (int j = 0; j < i.length(); j++) {
-			Code.put(Code.dup);
-			Code.loadConst(j);
-			Code.loadConst(i.charAt(j));
-			Code.put(Code.bastore);
-		}
-
-		RESULT = con;
-
-	:}
-	;
 
 GlobalVarDecl ::= Type GlobalVarDefList SEMI
 		| Type error SEMI
@@ -665,10 +840,10 @@ Extends ::= EXTENDS Type:inherit {:
 	| /* epsilon */
 	;
 
-VarMethodDeclList ::= ClassVarDecl VarMethodDeclList
-		| MethodDecl {:
+VarMethodDeclList ::= VarMethodDeclList:l ClassVarDecl
+		| VarMethodDeclList:l MethodDecl {:
 			parser.innerClassMethodCount++;
-		:} VarMethodDeclList
+		:} 
 		| /* epsilon */
 		;
 
@@ -688,7 +863,7 @@ ClassVarDef ::= Ident:id {:
 		;
 
 
-MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
+MethodDecl ::= Type MethodName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 		if (m != null && currMethod != null) {
 			Tab.chainLocalSymbols(currMethod);
 			
@@ -698,7 +873,7 @@ MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 		}
 
 	:}
-		 StatementList RBRACE EndOfFunction {:
+		 StatementList RBRACE {:
 
 			if (m != null &&currMethod != null) {
 				Tab.closeScope();
@@ -707,7 +882,7 @@ MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 			}
 			parser.statementBlocksCount++;
 	:}
-	| VOID {: currType = Tab.noType; :} FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
+	| VOID {: currType = Tab.noType; :} MethodName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 		if (m != null && currMethod != null) {
 			Tab.chainLocalSymbols(currMethod);
 			
@@ -716,7 +891,7 @@ MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 			Code.put(Tab.currentScope.getnVars() + 1); // formal + local
 		}
 	:}
-	StatementList RBRACE EndOfFunction {:
+	StatementList RBRACE {:
 		if (m != null && currMethod != null) {
 			parser.statementBlocksCount++;
 			Code.put(Code.exit);
@@ -725,6 +900,24 @@ MethodDecl ::= Type FuncName:m LPAREN FormPars RPAREN VarDeclList LBRACE {:
 	:}
 	;
 
+MethodName ::= IDENT:name {:
+		Obj temp = null;
+
+		if (currClass != null && currType != null) {
+			if (!isDeclared(name)) {
+				temp = Tab.insert(Obj.Meth, name, currType);
+				temp.setLevel(0);
+				temp.setAdr(Code.pc);
+				Tab.openScope();
+			} else {
+				printError(Message.SemanticError.alreadyDeclared(name, nameleft));
+			}
+
+			currMethod = temp;
+			RESULT = temp;
+		}
+	:}
+	;
 
 FunctionDecl ::= Type Function:fn {:
 		if (fn != null && currMethod != null) {
@@ -769,7 +962,7 @@ Function ::= FuncName:fn LPAREN FormPars RPAREN VarDeclList {:
 			}
 			currMethod = null;
 		}
-	:} EndOfFunction
+	:} 
 	;
 
 FuncName ::= IDENT:fname {:
@@ -803,11 +996,6 @@ FuncName ::= IDENT:fname {:
 		RESULT = currMethod;
 	:}
 	;
-
-EndOfFunction ::= {:
-		:} 
-		/* epsilon */
-		;
 
 FunctionDeclList ::= FunctionDecl {:
 			parser.functionDefinitionCount++;
@@ -893,19 +1081,49 @@ matched ::= Designator:d ASSIGN Expr:e  {:
 			}
 		:}
 		| Designator ASSIGN error SEMI
-		| FuncCall LPAREN RPAREN SEMI
+		| FuncCall:f LPAREN RPAREN SEMI {:
+			//end of function call
+			generateFunctionCall(f, fleft);
+
+			if (f != null) {
+				if (f.getType() != Tab.noType) {
+					Code.put(Code.pop);
+				}
+			}
+			
+		:}
 		| FuncCall:f LPAREN ActPars RPAREN SEMI {:
 			//end of function call
 			generateFunctionCall(f, fleft);
 
 			if (f != null) {
 				if (f.getType() != Tab.noType) {
-					// pop return value
+					Code.put(Code.pop);
 				}
 			}
 		:}
 		| FuncCall LPAREN error RPAREN SEMI
-		| READ LPAREN Designator RPAREN SEMI
+		| READ LPAREN Designator:d RPAREN SEMI {:
+			if (d != null) {
+				if (d.getKind() == Obj.Con) {
+					printError(Message.SemanticError.assignToConst(d, dleft));
+				} 
+
+				if (d.getType() == Tab.intType || d.getType() == parser.boolType) {
+					Code.put(Code.read);
+					Code.store(d);
+				} else if (d.getType() == Tab.charType) {
+					Code.put(Code.bread);
+					Code.store(d);
+				} else if (d.getType() == parser.stringType) {
+					Code.load(d);
+					Code.put(Code.call);
+					Code.put2(readStringAddr - Code.pc + 1);
+				}
+			} else {
+				printError(Message.SemanticError.wrongType(d.getName(), dleft));
+			}
+		:}
 		| BREAK:br SEMI {:
 			if (breakAddressFixStack.peek() == null) {
 				printError(Message.SemanticError.breakOutOfLoop(brleft));
@@ -952,7 +1170,8 @@ matched ::= Designator:d ASSIGN Expr:e  {:
 					Code.loadConst(1);
 					Code.put(Code.bprint);
 				} else if(type == parser.stringType) {
-					// Unsuported
+					Code.put(Code.call);
+					Code.put2(printStringAddr - Code.pc + 1);
 				} else {
 					printError(Message.SemanticError.wrongParams("print", exprleft));
 				}
@@ -971,7 +1190,8 @@ matched ::= Designator:d ASSIGN Expr:e  {:
 					Code.loadConst(i);
 					Code.put(Code.bprint);
 				} else if(type == parser.stringType) {
-					// Unsuported
+					Code.put(Code.call);
+					Code.put2(printStringAddr - Code.pc + 1);
 				} else {
 					printError(Message.SemanticError.wrongParams("print", exprleft));
 				}
@@ -1000,13 +1220,10 @@ WhileStart ::= {:
 
 IfEnd ::= {:
 		ArrayList<Integer> al = falseAddressFixStack.peek();
-		System.err.println("IfEnd");
 		if (al != null) {
-			System.err.println("al != null && al.size = " + al.size());
 			
 			for (Integer i : al) {
 				Code.fixup(i);
-				System.err.println("IfEnd->FIXUP: " + i.toString());
 			}
 			falseAddressFixStack.pop();
 		}
@@ -1020,13 +1237,11 @@ WhileEnd ::= {:
 
 		for (Integer i : al) {
 			Code.fixup(i);
-				System.err.println("WHileEnd->FIXUP: " + i.toString());
 		}
 
 		al = breakAddressFixStack.pop();
 		for (Integer i : al) {
 			
-				System.err.println("WhileEnd->FIXUP: " + i.toString());
 			Code.fixup(i);
 		}
 	:}
@@ -1040,7 +1255,6 @@ ElseStart ::= {:
 
 ElseEnd ::= {:
 		Integer xxx = elseSkipAddressFixStack.pop();
-		System.err.println("ElseEnd->FIXUP: " + xxx.toString());
 		Code.fixup(xxx);
 	:}
 	;
@@ -1051,7 +1265,6 @@ Cond ::= LPAREN {:
 	:} Condition RPAREN {:
 		for (Integer i : orConditionAddressFixList) {
 			
-				System.err.println("Cond->FIXUP: " + i.toString());
 			Code.fixup(i);
 		}
 	:}
@@ -1076,7 +1289,6 @@ Condition ::= CondTerm
 		ArrayList<Integer> al = falseAddressFixStack.pop();
 		for (Integer i : al) {
 			
-				System.err.println("Condition->FIXUP: " + i.toString());
 			Code.fixup(i);
 		}
 		falseAddressFixStack.push(new ArrayList<Integer>());
@@ -1096,7 +1308,6 @@ CondFact ::= Expr:expr {:
 			} else {
 				res = parser.boolType;
 			}
-			System.err.println("AAAAAAAAAAAAAAAAAAAAAAAAAAA");
 			// Code gen bool == 1
 			Code.loadConst(1);
 
@@ -1111,7 +1322,6 @@ CondFact ::= Expr:expr {:
 		
 		if (expr1 != null && expr2 != null) {
 			if (op == Code.eq || op == Code.ne) {
-				System.err.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
 				if (!expr1.getType().equals(expr2.getType())) {
 					printError(Message.SemanticError.cannotCompare(opleft));
 				} else {
@@ -1120,13 +1330,11 @@ CondFact ::= Expr:expr {:
 					falseAddressFixStack.peek().add(Code.pc - 2);
 				}
 			} else {
-				System.err.println("EXPR1: " + expr1.getName() + "   EXPR2: " + expr2.getName());
 				if (!expr1.getType().equals(expr2.getType()) || expr1.getType() != Tab.intType) {
 					printError(Message.SemanticError.cannotCompare(opleft));
 				} else {
 					// Fix after while or if
 					Code.putFalseJump(op, 0);
-					System.err.println("JKAWHDIUQWHIUODHQWOIDHOIQWDJ");
 					falseAddressFixStack.peek().add(Code.pc - 2);
 				}
 			}
@@ -1144,6 +1352,8 @@ Expr ::= Expr:e Addop:op Term:t {:
 				RESULT = e;
 			} else if (t.getType().equals(e.getType()) && t.getType() == parser.stringType && op == Code.add) {
 				// Call generated function for addString
+				Code.put(Code.call);
+				Code.put2(addStringAddr - Code.pc + 1);
 				RESULT = e;
 			} else {
 				printError(Message.SemanticError.wrongType(currTypeName, eleft));
@@ -1271,8 +1481,9 @@ Factor ::= NUMBER:i {:
 			} else {
 				Code.put(1);
 			}
-
-			parser.instatiationStatementCount++;
+			if (t.getType().getKind() == Struct.Class) {
+				parser.instatiationStatementCount++;
+			}
 
 			RESULT = array;
 		}

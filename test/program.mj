@@ -4,6 +4,7 @@ const string t = "aa1234567";
 const string ccc = "aa";
 const string qwe = "rty";
 
+int xas[];
 
 class A {
 	string x;
@@ -17,18 +18,27 @@ class B extends A {
 	int int1;
 	string y, z;
 
-
+	int xxx;
 	int getY() {
+		return int1;
+	}
+
+	int getX() {
 		return int1;
 	}
 
 }
  
 {
+
+	void printaj() {
+		print(ccc);
+	}
 	int saberi (int a, int b) 
 	{
 		return a+b;
 	}
+
 
 	void main () 
 		B ba; string x; bool bl; int r; B b[]; char d; int niz[];
@@ -36,17 +46,15 @@ class B extends A {
 		bl = false;
 		ba = new B;
 		ba.y = new char[16];
-		ba.y = "asdasdasdasds";
-		ba.int1 = 1;
-		ba.int2 = 2;
-		ba.int1 = 3;
-		print(ba.int2);
+		r = saberi(7, 7);
+		printaj();
 		if(bl) {
 			print(666);
 		} else {
 			print(777);
 		}
-
+		ba.int1 = 99;
+		print(ba.getX());
 		r = 7;
 
 			do{print(r);
